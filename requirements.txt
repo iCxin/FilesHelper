@@ -1,0 +1,5 @@
+pathlib>=1.0.1
+tqdm>=4.65.0
+# tkinter 通常包含在 Python 标准库中，不需要单独安装 
+pyinstaller==6.3.0
+pillow==10.2.0 
