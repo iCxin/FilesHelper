@@ -7,7 +7,10 @@ import sys
 
 class FileOrganizer:
     def __init__(self):
-        self.rules = {}
+        self.rule_groups = {
+            "默认规则组": {}  # 默认规则组
+        }
+        self.current_group = "默认规则组"
         self.resources_dir = Path("resources")
         self.resources_dir.mkdir(exist_ok=True)
         self.config_file = self.resources_dir / "file_rules.json"
@@ -21,23 +24,31 @@ class FileOrganizer:
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    self.rules = json.load(f)
+                    data = json.load(f)
+                    self.rule_groups = data.get("rule_groups", {"默认规则组": {}})
+                    self.current_group = data.get("current_group", "默认规则组")
             except json.JSONDecodeError:
                 print("规则文件损坏，将创建新的规则文件")
-                self.rules = {}
+                self.rule_groups = {"默认规则组": {}}
+                self.current_group = "默认规则组"
         else:
             print("未找到规则文件，将创建新的规则文件")
-            self.rules = {}
+            self.rule_groups = {"默认规则组": {}}
+            self.current_group = "默认规则组"
 
     def save_rules(self):
         """保存分类规则"""
         try:
+            data = {
+                "rule_groups": self.rule_groups,
+                "current_group": self.current_group
+            }
             with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(self.rules, f, ensure_ascii=False, indent=4)
+                json.dump(data, f, ensure_ascii=False, indent=4)
         except Exception as e:
             print(f"保存规则时出错: {str(e)}")
 
-    def add_rule(self, keyword, folder_name):
+    def add_rule(self, keyword, folder_name, group_name=None):
         """添加新的分类规则"""
         if not keyword:
             print("关键词不能为空！")
@@ -50,18 +61,64 @@ class FileOrganizer:
         # 规范化文件夹名称
         folder_name = folder_name.strip().replace('/', '_').replace('\\', '_')
         
-        self.rules[keyword] = folder_name
+        # 如果未指定规则组，使用当前规则组
+        if group_name is None:
+            group_name = self.current_group
+        
+        # 确保规则组存在
+        if group_name not in self.rule_groups:
+            self.rule_groups[group_name] = {}
+        
+        self.rule_groups[group_name][keyword] = folder_name
         self.save_rules()
         return True
 
-    def organize_files(self, source_dir, target_dir, operation_mode='copy'):
-        """根据规则整理文件
+    def add_rule_group(self, group_name):
+        """添加新的规则组"""
+        if not group_name:
+            print("规则组名称不能为空！")
+            return False
         
-        Args:
-            source_dir: 源目录
-            target_dir: 目标目录
-            operation_mode: 操作模式，'move' 表示移动，'copy' 表示复制
-        """
+        if group_name in self.rule_groups:
+            print(f"规则组 '{group_name}' 已存在！")
+            return False
+        
+        self.rule_groups[group_name] = {}
+        self.save_rules()
+        return True
+
+    def delete_rule_group(self, group_name):
+        """删除规则组"""
+        if group_name == "默认规则组":
+            print("不能删除默认规则组！")
+            return False
+        
+        if group_name not in self.rule_groups:
+            print(f"规则组 '{group_name}' 不存在！")
+            return False
+        
+        del self.rule_groups[group_name]
+        if self.current_group == group_name:
+            self.current_group = "默认规则组"
+        self.save_rules()
+        return True
+
+    def set_current_group(self, group_name):
+        """设置当前规则组"""
+        if group_name not in self.rule_groups:
+            print(f"规则组 '{group_name}' 不存在！")
+            return False
+        
+        self.current_group = group_name
+        self.save_rules()
+        return True
+
+    def get_current_rules(self):
+        """获取当前规则组的规则"""
+        return self.rule_groups.get(self.current_group, {})
+
+    def organize_files(self, source_dir, target_dir, operation_mode='copy'):
+        """根据规则整理文件"""
         source_path = Path(source_dir)
         target_path = Path(target_dir)
         
@@ -73,6 +130,9 @@ class FileOrganizer:
         # 确保目标目录存在
         target_path.mkdir(parents=True, exist_ok=True)
 
+        # 获取当前规则组的规则
+        rules = self.get_current_rules()
+
         # 获取所有文件（包括子目录）
         try:
             files = list(source_path.glob('**/*'))
@@ -83,6 +143,7 @@ class FileOrganizer:
                 return
                 
             print(f"找到 {total_files} 个文件需要处理")
+            print(f"使用规则组: {self.current_group}")
             
             # 使用tqdm显示进度条
             for file_path in tqdm(files, desc="正在整理文件"):
@@ -98,7 +159,7 @@ class FileOrganizer:
                     
                     # 检查是否匹配任何规则
                     matched = False
-                    for keyword, folder_name in self.rules.items():
+                    for keyword, folder_name in rules.items():
                         if keyword.lower() in file_name or keyword.lower() == file_ext:
                             # 创建目标文件夹
                             new_folder = target_path / folder_name
@@ -193,16 +254,18 @@ def main():
         print("2. 开始整理文件")
         print("3. 查看当前规则")
         print("4. 删除规则")
-        print("5. 关于")
-        print("6. 退出")
+        print("5. 规则组管理")
+        print("6. 关于")
+        print("7. 退出")
         
         try:
-            choice = input("\n请选择操作 (1-6): ")
+            choice = input("\n请选择操作 (1-7): ")
             
             if choice == "1":
                 keyword = input("请输入关键词或文件扩展名（如 .pdf）: ")
                 folder_name = input("请输入对应的文件夹名称（留空则使用关键词）: ")
-                if organizer.add_rule(keyword, folder_name):
+                group_name = input("请输入规则组名称（留空则使用当前规则组）: ")
+                if organizer.add_rule(keyword, folder_name, group_name):
                     print(f"已添加规则: {keyword} -> {folder_name or keyword}")
                 
             elif choice == "2":
@@ -220,20 +283,22 @@ def main():
                 organizer.organize_files(source_dir, target_dir, operation_mode)
                 
             elif choice == "3":
-                if not organizer.rules:
-                    print("\n当前没有分类规则")
+                current_rules = organizer.get_current_rules()
+                if not current_rules:
+                    print("\n当前规则组没有分类规则")
                 else:
-                    print("\n当前分类规则：")
-                    for keyword, folder in organizer.rules.items():
+                    print(f"\n当前规则组 '{organizer.current_group}' 的分类规则：")
+                    for keyword, folder in current_rules.items():
                         print(f"{keyword} -> {folder}")
                 
             elif choice == "4":
-                if not organizer.rules:
-                    print("\n当前没有分类规则")
+                current_rules = organizer.get_current_rules()
+                if not current_rules:
+                    print("\n当前规则组没有分类规则")
                     continue
                     
-                print("\n当前分类规则：")
-                for i, (keyword, folder) in enumerate(organizer.rules.items(), 1):
+                print(f"\n当前规则组 '{organizer.current_group}' 的分类规则：")
+                for i, (keyword, folder) in enumerate(current_rules.items(), 1):
                     print(f"{i}. {keyword} -> {folder}")
                 
                 try:
@@ -241,9 +306,9 @@ def main():
                     if rule_index == 0:
                         continue
                         
-                    if 1 <= rule_index <= len(organizer.rules):
-                        keyword = list(organizer.rules.keys())[rule_index - 1]
-                        del organizer.rules[keyword]
+                    if 1 <= rule_index <= len(current_rules):
+                        keyword = list(current_rules.keys())[rule_index - 1]
+                        del organizer.rule_groups[organizer.current_group][keyword]
                         organizer.save_rules()
                         print(f"已删除规则: {keyword}")
                     else:
@@ -252,6 +317,86 @@ def main():
                     print("请输入有效的数字！")
                 
             elif choice == "5":
+                while True:
+                    print("\n=== 规则组管理 ===")
+                    print("1. 查看所有规则组")
+                    print("2. 添加规则组")
+                    print("3. 删除规则组")
+                    print("4. 切换当前规则组")
+                    print("5. 返回主菜单")
+                    
+                    sub_choice = input("\n请选择操作 (1-5): ")
+                    
+                    if sub_choice == "1":
+                        print("\n所有规则组：")
+                        for i, group_name in enumerate(organizer.rule_groups.keys(), 1):
+                            prefix = "* " if group_name == organizer.current_group else "  "
+                            print(f"{prefix}{i}. {group_name}")
+                            rules = organizer.rule_groups[group_name]
+                            if rules:
+                                print("   规则：")
+                                for keyword, folder in rules.items():
+                                    print(f"   - {keyword} -> {folder}")
+                            else:
+                                print("   暂无规则")
+                    
+                    elif sub_choice == "2":
+                        group_name = input("请输入新规则组名称: ")
+                        if organizer.add_rule_group(group_name):
+                            print(f"已添加规则组: {group_name}")
+                    
+                    elif sub_choice == "3":
+                        if len(organizer.rule_groups) <= 1:
+                            print("至少保留一个规则组！")
+                            continue
+                            
+                        print("\n可删除的规则组：")
+                        for i, group_name in enumerate(organizer.rule_groups.keys(), 1):
+                            if group_name != "默认规则组":
+                                print(f"{i}. {group_name}")
+                        
+                        try:
+                            group_index = int(input("\n请输入要删除的规则组编号 (0 取消): "))
+                            if group_index == 0:
+                                continue
+                                
+                            group_names = [name for name in organizer.rule_groups.keys() if name != "默认规则组"]
+                            if 1 <= group_index <= len(group_names):
+                                group_name = group_names[group_index - 1]
+                                if organizer.delete_rule_group(group_name):
+                                    print(f"已删除规则组: {group_name}")
+                            else:
+                                print("无效的规则组编号！")
+                        except ValueError:
+                            print("请输入有效的数字！")
+                    
+                    elif sub_choice == "4":
+                        print("\n可切换的规则组：")
+                        for i, group_name in enumerate(organizer.rule_groups.keys(), 1):
+                            prefix = "* " if group_name == organizer.current_group else "  "
+                            print(f"{prefix}{i}. {group_name}")
+                        
+                        try:
+                            group_index = int(input("\n请输入要切换的规则组编号 (0 取消): "))
+                            if group_index == 0:
+                                continue
+                                
+                            if 1 <= group_index <= len(organizer.rule_groups):
+                                group_name = list(organizer.rule_groups.keys())[group_index - 1]
+                                if organizer.set_current_group(group_name):
+                                    print(f"已切换到规则组: {group_name}")
+                            else:
+                                print("无效的规则组编号！")
+                        except ValueError:
+                            print("请输入有效的数字！")
+                    
+                    elif sub_choice == "5":
+                        break
+                    
+                    else:
+                        print("无效的选择，请重试！")
+                
+            elif choice == "6":
                 print("\n=== 关于 ===")
                 print("文件整理助手 v1.4.0")
                 print("一个固定规则的文件分类工具，可以根据文件名中的关键词或文件类型自动将文件分类到不同的文件夹中。")
@@ -262,7 +407,7 @@ def main():
                 print("\n© 2023 cxin. 保留所有权利。")
                 input("\n按回车键继续...")
                 
-            elif choice == "6":
+            elif choice == "7":
                 print("感谢使用！再见！")
                 break
                 

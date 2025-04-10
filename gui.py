@@ -2,7 +2,7 @@ import os
 import shutil
 import json
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
+from tkinter import ttk, filedialog, messagebox, scrolledtext, simpledialog
 from pathlib import Path
 import threading
 import queue
@@ -10,6 +10,7 @@ import webbrowser
 from datetime import datetime, timedelta
 import logging
 from logging.handlers import TimedRotatingFileHandler
+import time
 
 class FileOrganizerGUI:
     def __init__(self, root):
@@ -34,7 +35,10 @@ class FileOrganizerGUI:
         self.style.configure("Black.TButton", foreground="black")  # 添加黑色文字按钮样式
         
         # 初始化变量
-        self.rules = {}
+        self.rule_groups = {
+            "默认规则组": {}  # 默认规则组
+        }
+        self.current_group = "默认规则组"
         self.resources_dir = Path("resources")
         self.resources_dir.mkdir(exist_ok=True)
         self.config_file = self.resources_dir / "file_rules.json"
@@ -148,15 +152,23 @@ class FileOrganizerGUI:
         # 使对话框居中显示
         self.center_window(dialog)
         
-        # 日志保留天数设置
-        frame = ttk.Frame(dialog, padding="20")
-        frame.pack(fill=tk.BOTH, expand=True)
+        # 主框架
+        main_frame = ttk.Frame(dialog, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
-        ttk.Label(frame, text="日志保留天数:").pack(anchor=tk.W)
+        # 日志保留天数设置
+        days_frame = ttk.LabelFrame(main_frame, text="日志保留天数", padding="10")
+        days_frame.pack(fill=tk.X, pady=(0, 10))
         
         days_var = tk.StringVar(value=str(self.log_retention_days))
-        days_entry = ttk.Entry(frame, textvariable=days_var, width=10)
-        days_entry.pack(anchor=tk.W, pady=5)
+        days_entry = ttk.Entry(days_frame, textvariable=days_var, width=10)
+        days_entry.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(days_frame, text="天").pack(side=tk.LEFT)
+        
+        # 按钮框架
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(0, 5))
         
         def save_settings():
             try:
@@ -175,32 +187,45 @@ class FileOrganizerGUI:
             except ValueError:
                 messagebox.showwarning("警告", "请输入有效的数字！", parent=dialog)
         
-        # 按钮框架
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(fill=tk.X, pady=10)
+        # 保存按钮
+        save_btn = ttk.Button(btn_frame, text="保存", command=save_settings)
+        save_btn.pack(side=tk.RIGHT, padx=5)
         
-        ttk.Button(btn_frame, text="保存", command=save_settings, style="Black.TButton").pack(side=tk.RIGHT, padx=5)
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy, style="Black.TButton").pack(side=tk.RIGHT)
+        # 取消按钮
+        cancel_btn = ttk.Button(btn_frame, text="取消", command=dialog.destroy)
+        cancel_btn.pack(side=tk.RIGHT, padx=5)
     
     def load_rules(self):
         """加载已保存的分类规则"""
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    self.rules = json.load(f)
+                    data = json.load(f)
+                    self.rule_groups = data.get("rule_groups", {"默认规则组": {}})
+                    self.current_group = data.get("current_group", "默认规则组")
             except json.JSONDecodeError:
                 messagebox.showwarning("警告", "规则文件损坏，将创建新的规则文件")
-                self.rules = {}
+                self.rule_groups = {"默认规则组": {}}
+                self.current_group = "默认规则组"
         else:
-            self.rules = {}
+            self.rule_groups = {"默认规则组": {}}
+            self.current_group = "默认规则组"
     
     def save_rules(self):
         """保存分类规则"""
         try:
+            data = {
+                "rule_groups": self.rule_groups,
+                "current_group": self.current_group
+            }
             with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(self.rules, f, ensure_ascii=False, indent=4)
+                json.dump(data, f, ensure_ascii=False, indent=4)
         except Exception as e:
             messagebox.showerror("错误", f"保存规则时出错: {str(e)}")
+    
+    def get_current_rules(self):
+        """获取当前规则组的规则"""
+        return self.rule_groups.get(self.current_group, {})
     
     def load_window_position(self):
         """加载窗口位置"""
@@ -291,6 +316,20 @@ class FileOrganizerGUI:
     
     def setup_rules_tab(self, parent):
         """设置规则管理选项卡"""
+        # 规则组选择框架
+        group_frame = ttk.LabelFrame(parent, text="规则组", padding="10")
+        group_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 规则组下拉框
+        self.group_var = tk.StringVar(value=self.current_group)
+        group_combo = ttk.Combobox(group_frame, textvariable=self.group_var, state="readonly")
+        group_combo['values'] = list(self.rule_groups.keys())
+        group_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        group_combo.bind('<<ComboboxSelected>>', self.on_group_selected)
+        
+        # 规则组管理按钮
+        ttk.Button(group_frame, text="管理规则组", command=self.show_group_management_dialog).pack(side=tk.RIGHT)
+        
         # 规则列表框架
         list_frame = ttk.LabelFrame(parent, text="当前规则", padding="10")
         list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -312,25 +351,387 @@ class FileOrganizerGUI:
         btn_frame = ttk.Frame(parent)
         btn_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # 添加规则按钮 - 使用黑色文字样式
-        add_btn = ttk.Button(btn_frame, text="添加规则", command=self.show_add_rule_dialog, style="Black.TButton")
-        add_btn.pack(side=tk.LEFT, padx=5)
+        # 添加规则按钮
+        ttk.Button(btn_frame, text="添加规则", command=self.show_add_rule_dialog).pack(side=tk.LEFT, padx=5)
         
         # 删除规则按钮
-        delete_btn = ttk.Button(btn_frame, text="删除规则", command=self.delete_rule)
-        delete_btn.pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="删除规则", command=self.delete_rule).pack(side=tk.LEFT, padx=5)
         
         # 导入规则包按钮
-        import_btn = ttk.Button(btn_frame, text="导入规则包", command=self.import_rule_package)
-        import_btn.pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="导入规则包", command=self.import_rule_package).pack(side=tk.LEFT, padx=5)
         
         # 导出规则包按钮
-        export_btn = ttk.Button(btn_frame, text="导出规则包", command=self.export_rule_package)
-        export_btn.pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="导出规则包", command=self.export_rule_package).pack(side=tk.LEFT, padx=5)
         
         # 刷新规则列表
         self.refresh_rules_list()
     
+    def on_group_selected(self, event):
+        """规则组选择事件处理"""
+        selected_group = self.group_var.get()
+        if selected_group != self.current_group:
+            self.current_group = selected_group
+            self.save_rules()
+            self.refresh_rules_list()
+            self.add_log(f"已切换到规则组: {selected_group}")
+    
+    def show_group_management_dialog(self):
+        """显示规则组管理对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("规则组管理")
+        dialog.geometry("400x350")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 使对话框居中显示
+        self.center_window(dialog)
+        
+        # 主框架
+        main_frame = ttk.Frame(dialog, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 规则组列表框架
+        list_frame = ttk.LabelFrame(main_frame, text="规则组列表", padding="10")
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        # 规则组列表
+        group_tree = ttk.Treeview(list_frame, columns=("name",), show="headings", height=10)
+        group_tree.heading("name", text="规则组名称")
+        group_tree.column("name", width=300)
+        group_tree.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        
+        # 滚动条
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=group_tree.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        group_tree.configure(yscrollcommand=scrollbar.set)
+        
+        # 刷新规则组列表
+        def refresh_group_list():
+            for item in group_tree.get_children():
+                group_tree.delete(item)
+            for group_name in self.rule_groups.keys():
+                group_tree.insert("", tk.END, values=(group_name,))
+                if group_name == self.current_group:
+                    group_tree.selection_set(group_tree.get_children()[-1])
+        
+        refresh_group_list()
+        
+        # 按钮框架
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        def add_group():
+            name = simpledialog.askstring("添加规则组", "请输入规则组名称:", parent=dialog)
+            if name:
+                if name in self.rule_groups:
+                    messagebox.showwarning("警告", f"规则组 '{name}' 已存在！", parent=dialog)
+                    return
+                self.rule_groups[name] = {}
+                self.save_rules()
+                refresh_group_list()
+                self.add_log(f"已添加规则组: {name}")
+        
+        def delete_group():
+            selected = group_tree.selection()
+            if not selected:
+                messagebox.showwarning("警告", "请先选择要删除的规则组！", parent=dialog)
+                return
+            
+            group_name = group_tree.item(selected[0])['values'][0]
+            if group_name == "默认规则组":
+                messagebox.showwarning("警告", "不能删除默认规则组！", parent=dialog)
+                return
+            
+            if messagebox.askyesno("确认", f"确定要删除规则组 '{group_name}' 吗？", parent=dialog):
+                del self.rule_groups[group_name]
+                if self.current_group == group_name:
+                    self.current_group = "默认规则组"
+                    self.group_var.set(self.current_group)
+                self.save_rules()
+                refresh_group_list()
+                self.refresh_rules_list()
+                self.add_log(f"已删除规则组: {group_name}")
+        
+        def rename_group():
+            selected = group_tree.selection()
+            if not selected:
+                messagebox.showwarning("警告", "请先选择要重命名的规则组！", parent=dialog)
+                return
+            
+            old_name = group_tree.item(selected[0])['values'][0]
+            if old_name == "默认规则组":
+                messagebox.showwarning("警告", "不能重命名默认规则组！", parent=dialog)
+                return
+            
+            new_name = simpledialog.askstring("重命名规则组", "请输入新的规则组名称:", 
+                                             initialvalue=old_name, parent=dialog)
+            if new_name and new_name != old_name:
+                if new_name in self.rule_groups:
+                    messagebox.showwarning("警告", f"规则组 '{new_name}' 已存在！", parent=dialog)
+                    return
+                
+                # 重命名规则组
+                self.rule_groups[new_name] = self.rule_groups.pop(old_name)
+                
+                # 更新当前规则组
+                if self.current_group == old_name:
+                    self.current_group = new_name
+                    self.group_var.set(self.current_group)
+                
+                self.save_rules()
+                refresh_group_list()
+                self.refresh_rules_list()
+                self.add_log(f"已将规则组 '{old_name}' 重命名为 '{new_name}'")
+        
+        # 按钮框架 - 使用网格布局
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # 添加规则组按钮
+        add_btn = ttk.Button(btn_frame, text="添加规则组", command=add_group)
+        add_btn.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        
+        # 重命名规则组按钮
+        rename_btn = ttk.Button(btn_frame, text="重命名规则组", command=rename_group)
+        rename_btn.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        
+        # 删除规则组按钮
+        delete_btn = ttk.Button(btn_frame, text="删除规则组", command=delete_group)
+        delete_btn.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+        
+        # 关闭按钮
+        close_btn = ttk.Button(btn_frame, text="关闭", command=dialog.destroy)
+        close_btn.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+        
+        # 配置列权重，使按钮均匀分布
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
+        btn_frame.grid_columnconfigure(2, weight=1)
+        btn_frame.grid_columnconfigure(3, weight=1)
+    
+    def show_add_rule_dialog(self):
+        """显示添加规则对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("添加规则")
+        dialog.geometry("400x250")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 使对话框居中显示
+        self.center_window(dialog)
+        
+        # 主框架
+        main_frame = ttk.Frame(dialog, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 规则组选择框架
+        group_frame = ttk.LabelFrame(main_frame, text="规则组", padding="10")
+        group_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 规则组下拉框
+        group_var = tk.StringVar(value=self.current_group)
+        group_combo = ttk.Combobox(group_frame, textvariable=group_var, state="readonly")
+        group_combo['values'] = list(self.rule_groups.keys())
+        group_combo.pack(fill=tk.X, expand=True)
+        
+        # 关键词框架
+        keyword_frame = ttk.LabelFrame(main_frame, text="关键词或文件扩展名", padding="10")
+        keyword_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 关键词输入框
+        keyword_var = tk.StringVar()
+        keyword_entry = ttk.Entry(keyword_frame, textvariable=keyword_var, width=40)
+        keyword_entry.pack(fill=tk.X, expand=True)
+        
+        # 目标文件夹框架
+        folder_frame = ttk.LabelFrame(main_frame, text="目标文件夹名称 (留空则使用关键词)", padding="10")
+        folder_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 目标文件夹输入框
+        folder_var = tk.StringVar()
+        folder_entry = ttk.Entry(folder_frame, textvariable=folder_var, width=40)
+        folder_entry.pack(fill=tk.X, expand=True)
+        
+        # 按钮框架
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        def add_rule():
+            keyword = keyword_var.get().strip()
+            folder = folder_var.get().strip()
+            group_name = group_var.get()
+            
+            if not keyword:
+                messagebox.showwarning("警告", "关键词不能为空！", parent=dialog)
+                return
+            
+            # 如果文件夹名称为空，则使用关键词作为文件夹名称
+            if not folder:
+                folder = keyword
+            
+            # 规范化文件夹名称
+            folder = folder.replace('/', '_').replace('\\', '_')
+            
+            # 添加规则
+            self.rule_groups[group_name][keyword] = folder
+            self.save_rules()
+            self.refresh_rules_list()
+            
+            # 关闭对话框
+            dialog.destroy()
+            
+            # 添加日志
+            self.add_log(f"已在规则组 '{group_name}' 中添加规则: {keyword} -> {folder}")
+        
+        # 添加按钮
+        add_btn = ttk.Button(btn_frame, text="添加", command=add_rule)
+        add_btn.pack(side=tk.RIGHT, padx=5)
+        
+        # 取消按钮
+        cancel_btn = ttk.Button(btn_frame, text="取消", command=dialog.destroy)
+        cancel_btn.pack(side=tk.RIGHT, padx=5)
+    
+    def refresh_rules_list(self):
+        """刷新规则列表"""
+        # 清空列表
+        for item in self.rules_tree.get_children():
+            self.rules_tree.delete(item)
+        
+        # 添加规则
+        current_rules = self.get_current_rules()
+        for keyword, folder in current_rules.items():
+            self.rules_tree.insert("", tk.END, values=(keyword, folder))
+    
+    def delete_rule(self):
+        """删除选中的规则"""
+        selected = self.rules_tree.selection()
+        if not selected:
+            messagebox.showinfo("提示", "请先选择要删除的规则")
+            return
+        
+        if messagebox.askyesno("确认", "确定要删除选中的规则吗？"):
+            for item in selected:
+                values = self.rules_tree.item(item, "values")
+                keyword = values[0]
+                del self.rule_groups[self.current_group][keyword]
+                self.add_log(f"已从规则组 '{self.current_group}' 中删除规则: {keyword}")
+            
+            self.save_rules()
+            self.refresh_rules_list()
+    
+    def import_rule_package(self):
+        """导入规则包"""
+        file_path = filedialog.askopenfilename(
+            title="选择规则包文件",
+            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                # 验证规则包格式
+                if not isinstance(data, dict):
+                    raise ValueError("规则包格式错误：不是有效的JSON对象")
+                
+                # 验证必需字段
+                required_fields = ["version", "type", "created_at", "rule_groups"]
+                missing_fields = [field for field in required_fields if field not in data]
+                if missing_fields:
+                    raise ValueError(f"规则包格式错误：缺少必需字段 {', '.join(missing_fields)}")
+                
+                # 验证规则包类型
+                if data["type"] != "file_organizer_rules":
+                    raise ValueError("规则包格式错误：不是有效的文件整理助手规则包")
+                
+                # 验证规则组数据
+                rule_groups = data["rule_groups"]
+                if not isinstance(rule_groups, dict):
+                    raise ValueError("规则包格式错误：rule_groups字段不是有效的规则组对象")
+                
+                # 验证规则组格式
+                for group_name, rules in rule_groups.items():
+                    if not isinstance(group_name, str) or not isinstance(rules, dict):
+                        raise ValueError("规则包格式错误：规则组数据格式不正确")
+                    for keyword, folder in rules.items():
+                        if not isinstance(keyword, str) or not isinstance(folder, str):
+                            raise ValueError("规则包格式错误：规则数据格式不正确")
+                        if not keyword or not folder:
+                            raise ValueError("规则包格式错误：规则数据不能为空")
+                
+                # 询问是否覆盖现有规则组
+                if self.rule_groups and messagebox.askyesno("确认", "是否覆盖现有规则组？"):
+                    self.rule_groups = rule_groups
+                else:
+                    # 合并规则组
+                    for group_name, rules in rule_groups.items():
+                        if group_name in self.rule_groups:
+                            # 如果规则组已存在，询问是否覆盖
+                            if messagebox.askyesno("确认", f"规则组 '{group_name}' 已存在，是否覆盖？"):
+                                self.rule_groups[group_name] = rules
+                            else:
+                                # 不覆盖，合并规则
+                                self.rule_groups[group_name].update(rules)
+                        else:
+                            # 如果规则组不存在，直接添加
+                            self.rule_groups[group_name] = rules
+                
+                # 保存规则
+                self.save_rules()
+                self.refresh_rules_list()
+                
+                # 添加日志
+                self.add_log(f"已导入规则包: {file_path}")
+                self.add_log(f"规则包版本: {data['version']}")
+                self.add_log(f"创建时间: {data['created_at']}")
+                self.add_log(f"导入规则组数量: {len(rule_groups)}")
+                
+            except json.JSONDecodeError:
+                messagebox.showerror("错误", "规则包格式错误：不是有效的JSON文件")
+                self.add_log("导入规则包失败：不是有效的JSON文件")
+            except ValueError as e:
+                messagebox.showerror("错误", str(e))
+                self.add_log(f"导入规则包失败: {str(e)}")
+            except Exception as e:
+                messagebox.showerror("错误", f"导入规则包时出错: {str(e)}")
+                self.add_log(f"导入规则包失败: {str(e)}")
+    
+    def export_rule_package(self):
+        """导出规则包"""
+        if not self.rule_groups:
+            messagebox.showinfo("提示", "当前没有规则组可导出")
+            return
+        
+        file_path = filedialog.asksaveasfilename(
+            title="保存规则包",
+            defaultextension=".json",
+            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
+        )
+        
+        if file_path:
+            try:
+                # 创建规则包数据
+                data = {
+                    "version": "1.0",
+                    "type": "file_organizer_rules",
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "rule_groups": self.rule_groups
+                }
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=4)
+                
+                # 添加日志
+                self.add_log(f"已导出规则包: {file_path}")
+                self.add_log(f"导出规则组数量: {len(self.rule_groups)}")
+                
+            except Exception as e:
+                messagebox.showerror("错误", f"导出规则包时出错: {str(e)}")
+                self.add_log(f"导出规则包失败: {str(e)}")
+
     def setup_organize_tab(self, parent):
         """设置文件整理选项卡"""
         # 源目录框架
@@ -355,6 +756,15 @@ class FileOrganizerGUI:
         target_btn = ttk.Button(target_frame, text="浏览...", command=self.browse_target)
         target_btn.pack(side=tk.RIGHT)
         
+        # 规则组选择框架
+        group_frame = ttk.LabelFrame(parent, text="规则组", padding="10")
+        group_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        self.organize_group_var = tk.StringVar(value=self.current_group)
+        group_combo = ttk.Combobox(group_frame, textvariable=self.organize_group_var, state="readonly")
+        group_combo['values'] = list(self.rule_groups.keys())
+        group_combo.pack(fill=tk.X, expand=True)
+        
         # 操作模式框架
         mode_frame = ttk.LabelFrame(parent, text="操作模式", padding="10")
         mode_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -370,7 +780,7 @@ class FileOrganizerGUI:
         start_frame = ttk.Frame(parent)
         start_frame.pack(fill=tk.X, padx=5, pady=10)
         
-        self.start_btn = ttk.Button(start_frame, text="开始整理", command=self.start_organize, style="Black.TButton")
+        self.start_btn = ttk.Button(start_frame, text="开始整理", command=self.start_organize)
         self.start_btn.pack(side=tk.RIGHT)
         
         # 进度条
@@ -382,186 +792,7 @@ class FileOrganizerGUI:
         self.status_var = tk.StringVar(value="就绪")
         status_label = ttk.Label(parent, textvariable=self.status_var)
         status_label.pack(anchor=tk.W, padx=5)
-    
-    def setup_log_tab(self, parent):
-        """设置日志选项卡"""
-        # 日志框架
-        log_frame = ttk.LabelFrame(parent, text="操作日志", padding="10")
-        log_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # 日志文本框
-        self.log_text = tk.Text(log_frame, wrap=tk.WORD, font=('Consolas', 9))
-        self.log_text.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
-        
-        # 滚动条
-        scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.log_text.configure(yscrollcommand=scrollbar.set)
-        
-        # 按钮框架
-        btn_frame = ttk.Frame(parent)
-        btn_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # 保存日志按钮
-        save_btn = ttk.Button(btn_frame, text="保存日志", command=self.save_log)
-        save_btn.pack(side=tk.LEFT, padx=5)
-        
-        # 清除日志按钮
-        clear_btn = ttk.Button(btn_frame, text="清除日志", command=self.clear_log)
-        clear_btn.pack(side=tk.LEFT, padx=5)
-        
-        # 日志设置按钮
-        settings_btn = ttk.Button(btn_frame, text="日志设置", command=self.show_log_settings_dialog)
-        settings_btn.pack(side=tk.LEFT, padx=5)
-        
-        # 添加初始日志
-        self.add_log("程序启动")
-        self.add_log(f"当前日志保留天数: {self.log_retention_days} 天")
-    
-    def setup_about_tab(self, parent):
-        """设置关于选项卡"""
-        # 关于信息框架
-        about_frame = ttk.Frame(parent)
-        about_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        # 应用信息
-        app_info_frame = ttk.LabelFrame(about_frame, text="应用信息", padding="15")
-        app_info_frame.pack(fill=tk.X, padx=5, pady=10)
-        
-        ttk.Label(app_info_frame, text="文件整理助手", style="Title.TLabel").pack(anchor=tk.W, pady=(0, 5))
-        ttk.Label(app_info_frame, text="版本: 1.4.0", style="Subtitle.TLabel").pack(anchor=tk.W)
-        ttk.Label(app_info_frame, text="一个固定规则的文件分类工具，可以根据文件名中的关键词或文件类型自动将文件分类到不同的文件夹中。").pack(anchor=tk.W, pady=(5, 0))
-        
-        # 开发者信息
-        dev_info_frame = ttk.LabelFrame(about_frame, text="开发者信息", padding="15")
-        dev_info_frame.pack(fill=tk.X, padx=5, pady=10)
-        
-        ttk.Label(dev_info_frame, text="开发者: cxin", style="Subtitle.TLabel").pack(anchor=tk.W)
-        
-        # 邮箱链接
-        email_frame = ttk.Frame(dev_info_frame)
-        email_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(email_frame, text="邮箱: ").pack(side=tk.LEFT)
-        email_link = ttk.Label(email_frame, text="tojx@qq.com", style="Link.TLabel", cursor="hand2")
-        email_link.pack(side=tk.LEFT)
-        email_link.bind("<Button-1>", lambda e: webbrowser.open("mailto:tojx@qq.com"))
-        
-        # 网站链接
-        website_frame = ttk.Frame(dev_info_frame)
-        website_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(website_frame, text="个人网站: ").pack(side=tk.LEFT)
-        website_link = ttk.Label(website_frame, text="www.cxin.net", style="Link.TLabel", cursor="hand2")
-        website_link.pack(side=tk.LEFT)
-        website_link.bind("<Button-1>", lambda e: webbrowser.open("http://www.cxin.net"))
-        
-        # 版权信息
-        copyright_frame = ttk.Frame(about_frame)
-        copyright_frame.pack(fill=tk.X, pady=10)
-        ttk.Label(copyright_frame, text="© 2025 cxin. 保留所有权利。").pack(anchor=tk.CENTER)
-    
-    def refresh_rules_list(self):
-        """刷新规则列表"""
-        # 清空列表
-        for item in self.rules_tree.get_children():
-            self.rules_tree.delete(item)
-        
-        # 添加规则
-        for keyword, folder in self.rules.items():
-            self.rules_tree.insert("", tk.END, values=(keyword, folder))
-    
-    def show_add_rule_dialog(self):
-        """显示添加规则对话框"""
-        dialog = tk.Toplevel(self.root)
-        dialog.title("添加规则")
-        dialog.geometry("400x200")
-        dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        # 使对话框居中显示
-        self.center_window(dialog)
-        
-        # 关键词框架
-        keyword_frame = ttk.Frame(dialog, padding="10")
-        keyword_frame.pack(fill=tk.X)
-        
-        ttk.Label(keyword_frame, text="关键词或文件扩展名:").pack(anchor=tk.W)
-        keyword_var = tk.StringVar()
-        keyword_entry = ttk.Entry(keyword_frame, textvariable=keyword_var, width=40)
-        keyword_entry.pack(fill=tk.X, pady=5)
-        
-        # 文件夹框架
-        folder_frame = ttk.Frame(dialog, padding="10")
-        folder_frame.pack(fill=tk.X)
-        
-        ttk.Label(folder_frame, text="目标文件夹名称 (留空则使用关键词):").pack(anchor=tk.W)
-        folder_var = tk.StringVar()
-        folder_entry = ttk.Entry(folder_frame, textvariable=folder_var, width=40)
-        folder_entry.pack(fill=tk.X, pady=5)
-        
-        # 按钮框架
-        btn_frame = ttk.Frame(dialog, padding="10")
-        btn_frame.pack(fill=tk.X)
-        
-        def add_rule():
-            keyword = keyword_var.get().strip()
-            folder = folder_var.get().strip()
-            
-            if not keyword:
-                messagebox.showwarning("警告", "关键词不能为空！", parent=dialog)
-                return
-            
-            # 如果文件夹名称为空，则使用关键词作为文件夹名称
-            if not folder:
-                folder = keyword
-            
-            # 规范化文件夹名称
-            folder = folder.replace('/', '_').replace('\\', '_')
-            
-            # 添加规则
-            self.rules[keyword] = folder
-            self.save_rules()
-            self.refresh_rules_list()
-            
-            # 关闭对话框
-            dialog.destroy()
-            
-            # 添加日志
-            self.add_log(f"已添加规则: {keyword} -> {folder}")
-        
-        # 修改按钮样式，确保文字清晰可见
-        ttk.Button(btn_frame, text="添加", command=add_rule, style="Black.TButton").pack(side=tk.RIGHT, padx=5)
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy, style="Black.TButton").pack(side=tk.RIGHT)
-    
-    def delete_rule(self):
-        """删除选中的规则"""
-        selected = self.rules_tree.selection()
-        if not selected:
-            messagebox.showinfo("提示", "请先选择要删除的规则")
-            return
-        
-        if messagebox.askyesno("确认", "确定要删除选中的规则吗？"):
-            for item in selected:
-                values = self.rules_tree.item(item, "values")
-                keyword = values[0]
-                del self.rules[keyword]
-                self.add_log(f"已删除规则: {keyword}")
-            
-            self.save_rules()
-            self.refresh_rules_list()
-    
-    def browse_source(self):
-        """浏览源目录"""
-        directory = filedialog.askdirectory(title="选择源目录")
-        if directory:
-            self.source_var.set(directory)
-    
-    def browse_target(self):
-        """浏览目标目录"""
-        directory = filedialog.askdirectory(title="选择目标目录")
-        if directory:
-            self.target_var.set(directory)
-    
+
     def start_organize(self):
         """开始整理文件"""
         # 检查源目录和目标目录
@@ -581,9 +812,13 @@ class FileOrganizerGUI:
             messagebox.showwarning("警告", "源目录和目标目录不能相同")
             return
         
+        # 获取当前规则组
+        group_name = self.organize_group_var.get()
+        rules = self.rule_groups.get(group_name, {})
+        
         # 检查是否有规则
-        if not self.rules:
-            messagebox.showwarning("警告", "请先添加分类规则")
+        if not rules:
+            messagebox.showwarning("警告", f"规则组 '{group_name}' 中没有规则")
             return
         
         # 禁用开始按钮
@@ -599,11 +834,11 @@ class FileOrganizerGUI:
         self.error_files = 0
         
         # 启动处理线程
-        thread = threading.Thread(target=self.organize_files_thread, args=(source_dir, target_dir))
+        thread = threading.Thread(target=self.organize_files_thread, args=(source_dir, target_dir, group_name))
         thread.daemon = True
         thread.start()
-    
-    def organize_files_thread(self, source_dir, target_dir):
+
+    def organize_files_thread(self, source_dir, target_dir, group_name):
         """文件整理线程"""
         try:
             source_path = Path(source_dir)
@@ -624,7 +859,11 @@ class FileOrganizerGUI:
                 return
             
             self.add_log(f"找到 {total_files} 个文件需要处理")
+            self.add_log(f"使用规则组: {group_name}")
             self.status_var.set("正在处理...")
+            
+            # 获取规则组
+            rules = self.rule_groups.get(group_name, {})
             
             # 处理文件
             for i, file_path in enumerate(files):
@@ -647,7 +886,7 @@ class FileOrganizerGUI:
                     
                     # 检查是否匹配任何规则
                     matched = False
-                    for keyword, folder_name in self.rules.items():
+                    for keyword, folder_name in rules.items():
                         if keyword.lower() in file_name or keyword.lower() == file_ext:
                             # 创建目标文件夹
                             new_folder = target_path / folder_name
@@ -702,148 +941,148 @@ class FileOrganizerGUI:
             # 启用开始按钮
             self.start_btn.config(state=tk.NORMAL)
             self.is_processing = False
-    
-    def add_log(self, message):
-        """添加日志"""
-        # 添加到队列用于界面显示
-        self.log_queue.put(message)
-        # 同时写入日志文件
-        logging.info(message)
-    
-    def update_log(self):
-        """更新日志"""
-        try:
-            while True:
-                message = self.log_queue.get_nowait()
-                self.log_text.config(state=tk.NORMAL)
-                self.log_text.insert(tk.END, message + "\n")
-                self.log_text.see(tk.END)
-                self.log_text.config(state=tk.DISABLED)
-        except queue.Empty:
-            pass
+
+    def browse_source(self):
+        """浏览选择源目录"""
+        directory = filedialog.askdirectory(title="选择源目录")
+        if directory:
+            self.source_var.set(directory)
+            self.add_log(f"已选择源目录: {directory}")
+
+    def browse_target(self):
+        """浏览选择目标目录"""
+        directory = filedialog.askdirectory(title="选择目标目录")
+        if directory:
+            self.target_var.set(directory)
+            self.add_log(f"已选择目标目录: {directory}")
+
+    def setup_log_tab(self, parent):
+        """设置日志选项卡"""
+        # 日志显示区域
+        log_frame = ttk.LabelFrame(parent, text="操作日志", padding="10")
+        log_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # 每100毫秒检查一次
-        self.root.after(100, self.update_log)
-    
+        # 创建日志文本框
+        self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, width=80, height=20)
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+        
+        # 设置日志文本框只读
+        self.log_text.config(state=tk.DISABLED)
+        
+        # 按钮框架
+        btn_frame = ttk.Frame(parent)
+        btn_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 清除日志按钮
+        clear_btn = ttk.Button(btn_frame, text="清除日志", command=self.clear_log)
+        clear_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 日志设置按钮
+        settings_btn = ttk.Button(btn_frame, text="日志设置", command=self.show_log_settings_dialog)
+        settings_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 添加初始日志
+        self.add_log("程序启动")
+        self.add_log(f"当前日志保留天数: {self.log_retention_days} 天")
+
     def clear_log(self):
-        """清除日志"""
+        """清除日志显示"""
         self.log_text.config(state=tk.NORMAL)
         self.log_text.delete(1.0, tk.END)
         self.log_text.config(state=tk.DISABLED)
-    
-    def save_log(self):
-        """保存日志"""
-        file_path = filedialog.asksaveasfilename(
-            title="保存日志",
-            defaultextension=".txt",
-            filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")]
-        )
+        self.add_log("日志已清除")
+
+    def add_log(self, message):
+        """添加日志"""
+        # 获取当前时间
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if file_path:
+        # 格式化日志消息
+        log_message = f"[{current_time}] {message}\n"
+        
+        # 添加到日志队列
+        self.log_queue.put(log_message)
+        
+        # 同时记录到文件日志
+        logging.info(message)
+        
+        # 更新日志显示
+        self.update_log_display()
+
+    def update_log_display(self):
+        """更新日志显示"""
+        try:
+            # 获取所有待显示的日志
+            while not self.log_queue.empty():
+                log_message = self.log_queue.get_nowait()
+                
+                # 启用文本框编辑
+                self.log_text.config(state=tk.NORMAL)
+                
+                # 插入日志消息
+                self.log_text.insert(tk.END, log_message)
+                
+                # 滚动到最新位置
+                self.log_text.see(tk.END)
+                
+                # 禁用文本框编辑
+                self.log_text.config(state=tk.DISABLED)
+                
+        except queue.Empty:
+            pass
+        except Exception as e:
+            logging.error(f"更新日志显示时出错: {str(e)}")
+
+    def setup_about_tab(self, parent):
+        """设置关于选项卡"""
+        # 关于信息框架
+        about_frame = ttk.LabelFrame(parent, text="关于", padding="20")
+        about_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # 标题
+        title_label = ttk.Label(about_frame, text="文件整理助手", style="Title.TLabel")
+        title_label.pack(pady=(0, 10))
+        
+        # 版本信息
+        version_label = ttk.Label(about_frame, text="版本: 1.0.0", style="Subtitle.TLabel")
+        version_label.pack(pady=(0, 5))
+        
+        # 描述
+        desc_label = ttk.Label(about_frame, text="一个帮助您自动整理文件的工具", style="Subtitle.TLabel")
+        desc_label.pack(pady=(0, 20))
+        
+        # 开发者信息框架
+        dev_frame = ttk.LabelFrame(about_frame, text="开发者信息", padding="10")
+        dev_frame.pack(fill=tk.X, pady=(0, 20))
+        
+        # 开发者名称
+        name_label = ttk.Label(dev_frame, text="开发者: cxin")
+        name_label.pack(anchor=tk.W, pady=2)
+        
+        # 开发者邮箱
+        email_label = ttk.Label(dev_frame, text="邮箱: tojx@qq.com")
+        email_label.pack(anchor=tk.W, pady=2)
+        
+        # 开发者网站
+        website_label = ttk.Label(dev_frame, text="网站: www.cxin.net", style="Link.TLabel", cursor="hand2")
+        website_label.pack(anchor=tk.W, pady=2)
+        website_label.bind("<Button-1>", lambda e: webbrowser.open("http://www.cxin.net"))
+        
+        # 版权信息
+        copyright_label = ttk.Label(about_frame, text="© 2024 cxin. All rights reserved.", style="Subtitle.TLabel")
+        copyright_label.pack(side=tk.BOTTOM, pady=(20, 0))
+
+    def update_log(self):
+        """日志更新线程"""
+        while True:
             try:
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(self.log_text.get(1.0, tk.END))
-                messagebox.showinfo("成功", "日志已保存")
+                # 更新日志显示
+                self.update_log_display()
+                # 每秒更新一次
+                time.sleep(1)
             except Exception as e:
-                messagebox.showerror("错误", f"保存日志时出错: {str(e)}")
-    
-    def import_rule_package(self):
-        """导入规则包"""
-        file_path = filedialog.askopenfilename(
-            title="选择规则包文件",
-            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
-        )
-        
-        if file_path:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    rule_package = json.load(f)
-                
-                # 验证规则包格式
-                if not isinstance(rule_package, dict):
-                    raise ValueError("规则包格式错误：不是有效的JSON对象")
-                
-                # 验证必需字段
-                required_fields = ["version", "type", "created_at", "rules"]
-                missing_fields = [field for field in required_fields if field not in rule_package]
-                if missing_fields:
-                    raise ValueError(f"规则包格式错误：缺少必需字段 {', '.join(missing_fields)}")
-                
-                # 验证规则包类型
-                if rule_package["type"] != "file_organizer_rules":
-                    raise ValueError("规则包格式错误：不是有效的文件整理助手规则包")
-                
-                # 验证规则数据
-                rules = rule_package["rules"]
-                if not isinstance(rules, dict):
-                    raise ValueError("规则包格式错误：rules字段不是有效的规则对象")
-                
-                # 验证规则格式
-                for keyword, folder in rules.items():
-                    if not isinstance(keyword, str) or not isinstance(folder, str):
-                        raise ValueError("规则包格式错误：规则数据格式不正确")
-                    if not keyword or not folder:
-                        raise ValueError("规则包格式错误：规则数据不能为空")
-                
-                # 询问是否覆盖现有规则
-                if self.rules and messagebox.askyesno("确认", "是否覆盖现有规则？"):
-                    self.rules = rules
-                else:
-                    # 合并规则
-                    self.rules.update(rules)
-                
-                # 保存规则
-                self.save_rules()
-                self.refresh_rules_list()
-                
-                # 添加日志
-                self.add_log(f"已导入规则包: {file_path}")
-                self.add_log(f"规则包版本: {rule_package['version']}")
-                self.add_log(f"创建时间: {rule_package['created_at']}")
-                self.add_log(f"导入规则数量: {len(rules)}")
-                
-            except json.JSONDecodeError:
-                messagebox.showerror("错误", "规则包格式错误：不是有效的JSON文件")
-                self.add_log("导入规则包失败：不是有效的JSON文件")
-            except ValueError as e:
-                messagebox.showerror("错误", str(e))
-                self.add_log(f"导入规则包失败: {str(e)}")
-            except Exception as e:
-                messagebox.showerror("错误", f"导入规则包时出错: {str(e)}")
-                self.add_log(f"导入规则包失败: {str(e)}")
-    
-    def export_rule_package(self):
-        """导出规则包"""
-        if not self.rules:
-            messagebox.showinfo("提示", "当前没有规则可导出")
-            return
-        
-        file_path = filedialog.asksaveasfilename(
-            title="保存规则包",
-            defaultextension=".json",
-            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
-        )
-        
-        if file_path:
-            try:
-                # 创建规则包数据
-                rule_package = {
-                    "version": "1.0",
-                    "type": "file_organizer_rules",
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "rules": self.rules
-                }
-                
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(rule_package, f, ensure_ascii=False, indent=4)
-                
-                # 添加日志
-                self.add_log(f"已导出规则包: {file_path}")
-                self.add_log(f"导出规则数量: {len(self.rules)}")
-                
-            except Exception as e:
-                messagebox.showerror("错误", f"导出规则包时出错: {str(e)}")
-                self.add_log(f"导出规则包失败: {str(e)}")
+                logging.error(f"日志更新线程出错: {str(e)}")
+                time.sleep(1)  # 出错时等待1秒后继续
 
 def main():
     root = tk.Tk()
