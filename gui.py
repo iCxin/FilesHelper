@@ -267,51 +267,34 @@ class FileOrganizerGUI:
         self.root.destroy()
     
     def create_widgets(self):
-        """创建界面组件"""
-        # 创建主框架
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # 创建标题
-        title_frame = ttk.Frame(main_frame)
-        title_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        title_label = ttk.Label(title_frame, text="文件整理助手", style="Title.TLabel")
-        title_label.pack(side=tk.LEFT)
-        
-        subtitle_label = ttk.Label(title_frame, text="文件分类工具", style="Subtitle.TLabel")
-        subtitle_label.pack(side=tk.LEFT, padx=(10, 0), pady=(5, 0))
-        
+        """创建主界面组件"""
         # 创建选项卡
-        notebook = ttk.Notebook(main_frame)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 规则管理选项卡
-        rules_frame = ttk.Frame(notebook, padding="10")
-        notebook.add(rules_frame, text="规则管理")
-        
-        # 文件整理选项卡
-        organize_frame = ttk.Frame(notebook, padding="10")
-        notebook.add(organize_frame, text="文件整理")
-        
-        # 日志选项卡
-        log_frame = ttk.Frame(notebook, padding="10")
-        notebook.add(log_frame, text="操作日志")
-        
-        # 关于选项卡
-        about_frame = ttk.Frame(notebook, padding="10")
-        notebook.add(about_frame, text="关于")
-        
-        # 设置规则管理选项卡
+        rules_frame = ttk.Frame(self.notebook)
+        self.notebook.add(rules_frame, text="规则管理")
         self.setup_rules_tab(rules_frame)
         
-        # 设置文件整理选项卡
+        # 文件整理选项卡
+        organize_frame = ttk.Frame(self.notebook)
+        self.notebook.add(organize_frame, text="文件整理")
         self.setup_organize_tab(organize_frame)
         
-        # 设置日志选项卡
+        # 批量删除选项卡
+        delete_frame = ttk.Frame(self.notebook)
+        self.notebook.add(delete_frame, text="批量删除")
+        self.setup_delete_tab(delete_frame)
+        
+        # 操作日志选项卡
+        log_frame = ttk.Frame(self.notebook)
+        self.notebook.add(log_frame, text="操作日志")
         self.setup_log_tab(log_frame)
         
-        # 设置关于选项卡
+        # 关于选项卡
+        about_frame = ttk.Frame(self.notebook)
+        self.notebook.add(about_frame, text="关于")
         self.setup_about_tab(about_frame)
     
     def setup_rules_tab(self, parent):
@@ -353,6 +336,9 @@ class FileOrganizerGUI:
         
         # 添加规则按钮
         ttk.Button(btn_frame, text="添加规则", command=self.show_add_rule_dialog).pack(side=tk.LEFT, padx=5)
+        
+        # 修改规则按钮
+        ttk.Button(btn_frame, text="修改规则", command=self.edit_rule).pack(side=tk.LEFT, padx=5)
         
         # 删除规则按钮
         ttk.Button(btn_frame, text="删除规则", command=self.delete_rule).pack(side=tk.LEFT, padx=5)
@@ -464,7 +450,7 @@ class FileOrganizerGUI:
                 messagebox.showwarning("警告", "不能重命名默认规则组！", parent=dialog)
                 return
             
-            new_name = simpledialog.askstring("重命名规则组", "请输入新的规则组名称:", 
+            new_name = simpledialog.askstring("重命名", "请输入新的规则组名称:", 
                                              initialvalue=old_name, parent=dialog)
             if new_name and new_name != old_name:
                 if new_name in self.rule_groups:
@@ -493,7 +479,7 @@ class FileOrganizerGUI:
         add_btn.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         
         # 重命名规则组按钮
-        rename_btn = ttk.Button(btn_frame, text="重命名规则组", command=rename_group)
+        rename_btn = ttk.Button(btn_frame, text="重命名", command=rename_group)
         rename_btn.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         
         # 删除规则组按钮
@@ -514,7 +500,7 @@ class FileOrganizerGUI:
         """显示添加规则对话框"""
         dialog = tk.Toplevel(self.root)
         dialog.title("添加规则")
-        dialog.geometry("400x250")
+        dialog.geometry("400x300")  # 增加窗口高度
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -554,9 +540,9 @@ class FileOrganizerGUI:
         folder_entry = ttk.Entry(folder_frame, textvariable=folder_var, width=40)
         folder_entry.pack(fill=tk.X, expand=True)
         
-        # 按钮框架
+        # 按钮框架 - 使用网格布局
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=(0, 5))
+        btn_frame.pack(fill=tk.X, pady=(10, 5))
         
         def add_rule():
             keyword = keyword_var.get().strip()
@@ -585,13 +571,17 @@ class FileOrganizerGUI:
             # 添加日志
             self.add_log(f"已在规则组 '{group_name}' 中添加规则: {keyword} -> {folder}")
         
-        # 添加按钮
+        # 添加按钮 - 使用网格布局
         add_btn = ttk.Button(btn_frame, text="添加", command=add_rule)
-        add_btn.pack(side=tk.RIGHT, padx=5)
+        add_btn.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         
-        # 取消按钮
+        # 取消按钮 - 使用网格布局
         cancel_btn = ttk.Button(btn_frame, text="取消", command=dialog.destroy)
-        cancel_btn.pack(side=tk.RIGHT, padx=5)
+        cancel_btn.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        
+        # 配置列权重，使按钮均匀分布
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
     
     def refresh_rules_list(self):
         """刷新规则列表"""
@@ -705,9 +695,13 @@ class FileOrganizerGUI:
             messagebox.showinfo("提示", "当前没有规则组可导出")
             return
         
+        # 生成默认文件名
+        default_filename = f"FilesHelperRules_{datetime.now().strftime('%Y%m%d')}.json"
+        
         file_path = filedialog.asksaveasfilename(
             title="保存规则包",
             defaultextension=".json",
+            initialfile=default_filename,
             filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
         )
         
@@ -1083,6 +1077,276 @@ class FileOrganizerGUI:
             except Exception as e:
                 logging.error(f"日志更新线程出错: {str(e)}")
                 time.sleep(1)  # 出错时等待1秒后继续
+
+    def show_edit_rule_dialog(self, keyword, folder):
+        """显示修改规则对话框"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("修改规则")
+        dialog.geometry("400x300")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 使对话框居中显示
+        self.center_window(dialog)
+        
+        # 主框架
+        main_frame = ttk.Frame(dialog, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 规则组选择框架
+        group_frame = ttk.LabelFrame(main_frame, text="规则组", padding="10")
+        group_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 规则组下拉框
+        group_var = tk.StringVar(value=self.current_group)
+        group_combo = ttk.Combobox(group_frame, textvariable=group_var, state="readonly")
+        group_combo['values'] = list(self.rule_groups.keys())
+        group_combo.pack(fill=tk.X, expand=True)
+        
+        # 关键词框架
+        keyword_frame = ttk.LabelFrame(main_frame, text="关键词或文件扩展名", padding="10")
+        keyword_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 关键词输入框
+        keyword_var = tk.StringVar(value=keyword)
+        keyword_entry = ttk.Entry(keyword_frame, textvariable=keyword_var, width=40)
+        keyword_entry.pack(fill=tk.X, expand=True)
+        
+        # 目标文件夹框架
+        folder_frame = ttk.LabelFrame(main_frame, text="目标文件夹名称 (留空则使用关键词)", padding="10")
+        folder_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 目标文件夹输入框
+        folder_var = tk.StringVar(value=folder)
+        folder_entry = ttk.Entry(folder_frame, textvariable=folder_var, width=40)
+        folder_entry.pack(fill=tk.X, expand=True)
+        
+        # 按钮框架 - 使用网格布局
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(10, 5))
+        
+        def save_rule():
+            new_keyword = keyword_var.get().strip()
+            new_folder = folder_var.get().strip()
+            group_name = group_var.get()
+            
+            if not new_keyword:
+                messagebox.showwarning("警告", "关键词不能为空！", parent=dialog)
+                return
+            
+            # 如果文件夹名称为空，则使用关键词作为文件夹名称
+            if not new_folder:
+                new_folder = new_keyword
+            
+            # 规范化文件夹名称
+            new_folder = new_folder.replace('/', '_').replace('\\', '_')
+            
+            # 如果关键词已更改，需要删除旧规则
+            if new_keyword != keyword:
+                del self.rule_groups[group_name][keyword]
+            
+            # 更新规则
+            self.rule_groups[group_name][new_keyword] = new_folder
+            self.save_rules()
+            self.refresh_rules_list()
+            
+            # 关闭对话框
+            dialog.destroy()
+            
+            # 添加日志
+            self.add_log(f"已在规则组 '{group_name}' 中修改规则: {keyword} -> {new_keyword} -> {new_folder}")
+        
+        # 保存按钮 - 使用网格布局
+        save_btn = ttk.Button(btn_frame, text="保存", command=save_rule)
+        save_btn.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        
+        # 取消按钮 - 使用网格布局
+        cancel_btn = ttk.Button(btn_frame, text="取消", command=dialog.destroy)
+        cancel_btn.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        
+        # 配置列权重，使按钮均匀分布
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
+
+    def edit_rule(self):
+        """编辑选中的规则"""
+        selected = self.rules_tree.selection()
+        if not selected:
+            messagebox.showinfo("提示", "请先选择要修改的规则")
+            return
+        
+        item = selected[0]
+        values = self.rules_tree.item(item, "values")
+        keyword = values[0]
+        folder = values[1]
+        
+        self.show_edit_rule_dialog(keyword, folder)
+
+    def setup_delete_tab(self, parent):
+        """设置批量删除选项卡"""
+        # 功能说明
+        desc_frame = ttk.LabelFrame(parent, text="功能说明", padding="5")
+        desc_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        desc_text = "此功能可以帮助您批量删除空目录和空文件。\n" \
+                   "空目录：不包含任何文件和子目录的文件夹\n" \
+                   "空文件：大小为0字节的文件"
+        desc_label = ttk.Label(desc_frame, text=desc_text, wraplength=400)
+        desc_label.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 源目录选择
+        source_frame = ttk.LabelFrame(parent, text="源目录", padding="5")
+        source_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        self.delete_source_var = tk.StringVar()
+        source_entry = ttk.Entry(source_frame, textvariable=self.delete_source_var)
+        source_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        
+        browse_button = ttk.Button(source_frame, text="浏览", command=self.browse_delete_source)
+        browse_button.pack(side=tk.RIGHT, padx=5)
+        
+        # 删除选项
+        options_frame = ttk.LabelFrame(parent, text="删除选项", padding="5")
+        options_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        self.recursive_var = tk.BooleanVar(value=True)
+        recursive_check = ttk.Checkbutton(options_frame, text="递归处理子目录", 
+                                        variable=self.recursive_var)
+        recursive_check.pack(anchor=tk.W, padx=5, pady=2)
+        
+        self.delete_empty_dirs_var = tk.BooleanVar(value=True)
+        empty_dirs_check = ttk.Checkbutton(options_frame, text="删除空目录", 
+                                         variable=self.delete_empty_dirs_var)
+        empty_dirs_check.pack(anchor=tk.W, padx=5, pady=2)
+        
+        self.delete_empty_files_var = tk.BooleanVar(value=True)
+        empty_files_check = ttk.Checkbutton(options_frame, text="删除空文件", 
+                                          variable=self.delete_empty_files_var)
+        empty_files_check.pack(anchor=tk.W, padx=5, pady=2)
+        
+        self.confirm_delete_var = tk.BooleanVar(value=True)
+        confirm_check = ttk.Checkbutton(options_frame, text="删除前确认", 
+                                      variable=self.confirm_delete_var)
+        confirm_check.pack(anchor=tk.W, padx=5, pady=2)
+        
+        # 开始按钮
+        button_frame = ttk.Frame(parent)
+        button_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        self.start_delete_button = ttk.Button(button_frame, text="开始删除", 
+                                            command=self.start_delete)
+        self.start_delete_button.pack(side=tk.RIGHT, padx=5)
+        
+        # 进度条
+        self.delete_progress = ttk.Progressbar(parent, mode='determinate')
+        self.delete_progress.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 状态标签
+        self.delete_status_var = tk.StringVar(value="就绪")
+        status_label = ttk.Label(parent, textvariable=self.delete_status_var)
+        status_label.pack(fill=tk.X, padx=5, pady=5)
+        
+        # 初始化计数器
+        self.deleted_dirs = 0
+        self.deleted_files = 0
+        self.delete_errors = 0
+        
+    def browse_delete_source(self):
+        """浏览选择源目录"""
+        directory = filedialog.askdirectory()
+        if directory:
+            self.delete_source_var.set(directory)
+            self.add_log(f"选择源目录: {directory}")
+            
+    def start_delete(self):
+        """开始删除操作"""
+        source_dir = self.delete_source_var.get()
+        if not source_dir:
+            messagebox.showerror("错误", "请选择源目录")
+            return
+            
+        if not os.path.exists(source_dir):
+            messagebox.showerror("错误", "源目录不存在")
+            return
+            
+        if not self.delete_empty_dirs_var.get() and not self.delete_empty_files_var.get():
+            messagebox.showerror("错误", "请至少选择一种删除类型")
+            return
+            
+        if self.confirm_delete_var.get():
+            if not messagebox.askyesno("确认", "确定要开始删除操作吗？此操作不可撤销！"):
+                return
+                
+        self.start_delete_button.configure(state=tk.DISABLED)
+        self.delete_progress['value'] = 0
+        self.delete_status_var.set("正在删除...")
+        self.deleted_dirs = 0
+        self.deleted_files = 0
+        self.delete_errors = 0
+        
+        # 在新线程中执行删除操作
+        threading.Thread(target=self.delete_items_thread, args=(source_dir,), daemon=True).start()
+        
+    def delete_items_thread(self, source_dir):
+        """删除线程"""
+        try:
+            # 获取所有目录和文件
+            all_items = []
+            for root, dirs, files in os.walk(source_dir, topdown=False):
+                if not self.recursive_var.get() and root != source_dir:
+                    continue
+                    
+                if self.delete_empty_dirs_var.get():
+                    all_items.extend([os.path.join(root, d) for d in dirs])
+                    
+                if self.delete_empty_files_var.get():
+                    all_items.extend([os.path.join(root, f) for f in files])
+                    
+            total_items = len(all_items)
+            if total_items == 0:
+                self.delete_status_var.set("没有找到需要删除的项目")
+                self.start_delete_button.configure(state=tk.NORMAL)
+                return
+                
+            # 处理每个项目
+            for i, item in enumerate(all_items, 1):
+                try:
+                    if os.path.isdir(item):
+                        # 检查是否为空目录
+                        if not os.listdir(item):
+                            os.rmdir(item)
+                            self.deleted_dirs += 1
+                            self.add_log(f"删除空目录: {item}")
+                    else:
+                        # 检查是否为空文件
+                        if os.path.getsize(item) == 0:
+                            os.remove(item)
+                            self.deleted_files += 1
+                            self.add_log(f"删除空文件: {item}")
+                            
+                except Exception as e:
+                    self.delete_errors += 1
+                    self.add_log(f"删除失败: {item} - {str(e)}")
+                    
+                # 更新进度
+                progress = (i / total_items) * 100
+                self.delete_progress['value'] = progress
+                self.delete_status_var.set(f"正在处理: {i}/{total_items}")
+                
+            # 完成
+            status = f"删除完成 - 目录: {self.deleted_dirs}, 文件: {self.deleted_files}"
+            if self.delete_errors > 0:
+                status += f", 错误: {self.delete_errors}"
+            self.delete_status_var.set(status)
+            self.add_log(status)
+            
+        except Exception as e:
+            self.delete_status_var.set(f"删除过程出错: {str(e)}")
+            self.add_log(f"删除过程出错: {str(e)}")
+            
+        finally:
+            self.start_delete_button.configure(state=tk.NORMAL)
 
 def main():
     root = tk.Tk()

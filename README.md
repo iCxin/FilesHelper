@@ -5,7 +5,7 @@
 <a id="chinese"></a>
 # 文件整理助手
 
-一款专业的文件整理工具，提供现代化图形界面，支持自定义规则、实时日志和规则包管理。
+一个帮助您自动整理文件的工具，支持自定义规则、图形界面、实时日志显示和自动创建目标文件夹。
 
 ## 功能特点
 
@@ -29,6 +29,15 @@
   - 格式验证
   - 合并支持
   - 备份与恢复
+- 🗑️ 批量删除
+  - 空目录清理
+  - 空文件清理
+  - 递归处理
+  - 安全确认
+- 🔄 目录合并
+  - 相同父子目录合并
+  - 自动清理空目录
+  - 递归处理支持
 
 ## 系统要求
 
@@ -63,9 +72,18 @@ python build.py
 
 详细文档请访问我们的 [Wiki](https://github.com/yourusername/fileshelper/wiki)。
 
+## 更新日志
+
+### 2025年4月10日
+- 新增批量删除功能，支持删除空目录和空文件
+- 优化规则组管理界面，提高用户体验
+- 修复规则修改功能中的问题
+- 改进日志显示和记录机制
+- 优化整体界面布局和响应速度
+
 ## 许可证
 
-© 2025 cxin. 保留所有权利。
+版权所有 © 2024-2025 cxin 
 
 ---
 
@@ -96,6 +114,15 @@ A professional file organization tool with a modern graphical interface, support
   - Format validation
   - Merge support
   - Backup & restore
+- 🗑️ Batch Delete
+  - Empty directory cleanup
+  - Empty file cleanup
+  - Recursive processing
+  - Safety confirmation
+- 🔄 Directory Merge
+  - Same parent-child directory merge
+  - Automatic empty directory cleanup
+  - Recursive processing support
 
 ## System Requirements
 
@@ -130,6 +157,15 @@ python build.py
 
 For detailed documentation, please visit our [Wiki](https://github.com/yourusername/fileshelper/wiki).
 
+## Changelog
+
+### April 10, 2025
+- Added batch delete feature for empty directories and files
+- Optimized rule group management interface
+- Fixed rule modification functionality
+- Improved log display and recording mechanism
+- Enhanced overall UI layout and response speed
+
 ## License
 
-© 2025 cxin. All rights reserved. 
+© 2024-2025 cxin. All rights reserved. 
