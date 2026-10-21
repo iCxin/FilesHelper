@@ -1,171 +1,74 @@
-# FilesHelper | 文件整理助手
+<div align="right"><sub><code>iCxin / FilesHelper</code></sub></div>
 
-[中文](#chinese) | [English](#english)
+# FilesHelper
 
-<a id="chinese"></a>
-# 文件整理助手
+> Windows 上的文件整理工具：按自定义规则把源目录里的文件移动或复制到目标目录。
+> A Windows file organizer: move or copy a source directory into target folders by your own rules.
 
-一个帮助您自动整理文件的工具，支持自定义规则、图形界面、实时日志显示和自动创建目标文件夹。
-
-## 功能特点
-
-- 📁 自定义规则管理
-  - 规则组支持
-  - 规则包导入导出
-  - 扩展名匹配
-  - 关键词匹配
-- 🎯 文件整理
-  - 移动/复制模式
-  - 自动创建文件夹
-  - 进度跟踪
-  - 操作统计
-- 📊 日志系统
-  - 实时操作日志
-  - 日志保留设置
-  - 每日日志轮转
-  - 自动清理
-- 💼 规则包系统
-  - 版本控制
-  - 格式验证
-  - 合并支持
-  - 备份与恢复
-- 🗑️ 批量删除
-  - 空目录清理
-  - 空文件清理
-  - 递归处理
-  - 安全确认
-- 🔄 目录合并
-  - 相同父子目录合并
-  - 自动清理空目录
-  - 递归处理支持
-
-## 系统要求
-
-- Windows 7/8/10/11
-- 无需Python环境
-
-## 快速开始
-
-1. 下载最新版本
-2. 双击可执行文件
-3. 添加整理规则
-4. 选择源目录和目标目录
-5. 开始整理
-
-## 开发说明
-
-### 环境要求
-- Python 3.8+
-- tkinter
-- PyInstaller 6.3.0+
-
-### 构建方法
-```bash
-# 安装依赖
-pip install -r requirements.txt
-
-# 构建可执行文件
-python build.py
-```
-
-## 文档
-
-详细文档请访问我们的 [Wiki](https://github.com/yourusername/fileshelper/wiki)。
-
-## 更新日志
-
-### 2025年4月10日
-- 新增批量删除功能，支持删除空目录和空文件
-- 优化规则组管理界面，提高用户体验
-- 修复规则修改功能中的问题
-- 改进日志显示和记录机制
-- 优化整体界面布局和响应速度
-
-## 许可证
-
-版权所有 © 2024-2025 cxin 
+| | |
+|:--|:--|
+| **状态** | 维护中 |
+| **栈** | `Python` · `tkinter` · `PyInstaller` |
+| **平台** | Windows 7 / 8 / 10 / 11 |
+| **许可** | 保留所有权利 |
 
 ---
 
-<a id="english"></a>
-# FilesHelper
+## 01 · 这是什么
 
-A professional file organization tool with a modern graphical interface, supporting custom rules, real-time logging, and rule package management.
+带图形界面的文件整理助手。先定义规则（按扩展名或关键词匹配），再指定源目录与目标目录，按移动或复制执行；过程中显示进度与操作统计，并写入日志。发布形式是 PyInstaller 打包的可执行文件，使用者不需要安装 Python。
 
-## Features
+## 02 · 特性
 
-- 📁 Custom Rule Management
-  - Rule groups support
-  - Rule package import/export
-  - Extension-based matching
-  - Keyword-based matching
-- 🎯 File Organization
-  - Move/Copy modes
-  - Automatic folder creation
-  - Progress tracking
-  - Operation statistics
-- 📊 Logging System
-  - Real-time operation logs
-  - Log retention settings
-  - Daily log rotation
-  - Automatic cleanup
-- 💼 Rule Package System
-  - Version control
-  - Format validation
-  - Merge support
-  - Backup & restore
-- 🗑️ Batch Delete
-  - Empty directory cleanup
-  - Empty file cleanup
-  - Recursive processing
-  - Safety confirmation
-- 🔄 Directory Merge
-  - Same parent-child directory merge
-  - Automatic empty directory cleanup
-  - Recursive processing support
+| 能力 | 说明 |
+|:--|:--|
+| 规则管理 | 规则组分组管理，规则包可导入导出 |
+| 匹配方式 | 扩展名匹配、关键词匹配 |
+| 整理模式 | 移动或复制，自动创建目标文件夹 |
+| 进度与统计 | 实时进度显示、操作统计 |
+| 日志系统 | 实时操作日志，可设保留时长，每日轮转，自动清理 |
+| 规则包 | 版本控制、格式校验、合并、备份与恢复 |
+| 批量删除 | 删除空目录与空文件，递归处理，执行前确认 |
+| 目录合并 | 合并相同父子目录，合并后自动清理空目录 |
 
-## System Requirements
+## 03 · 快速开始
 
-- Windows 7/8/10/11
-- No Python environment required
+1. 下载最新发布的可执行文件
+2. 双击运行
+3. 添加整理规则
+4. 选择源目录与目标目录
+5. 开始整理
 
-## Quick Start
+无需 Python 环境。
 
-1. Download the latest release
-2. Double-click the executable file
-3. Add organization rules
-4. Select source and target directories
-5. Start organizing
+## 04 · 从源码构建
 
-## Development
+环境要求：Python 3.8+、tkinter、PyInstaller 6.3.0+。
 
-### Requirements
-- Python 3.8+
-- tkinter
-- PyInstaller 6.3.0+
-
-### Build
 ```bash
-# Install dependencies
 pip install -r requirements.txt
+```
 
-# Build executable
+打包脚本为 `build.py`：
+
+```bash
 python build.py
 ```
 
-## Documentation
+## 05 · 更新日志
 
-For detailed documentation, please visit our [Wiki](https://github.com/yourusername/fileshelper/wiki).
+2025-04-10：
 
-## Changelog
+- 新增批量删除，支持删除空目录与空文件
+- 优化规则组管理界面
+- 修复规则修改功能中的问题
+- 改进日志显示与记录机制
+- 调整整体界面布局与响应速度
 
-### April 10, 2025
-- Added batch delete feature for empty directories and files
-- Optimized rule group management interface
-- Fixed rule modification functionality
-- Improved log display and recording mechanism
-- Enhanced overall UI layout and response speed
+## 06 · 许可
 
-## License
+版权所有 © 2024-2025 cxin，保留所有权利。仓库未提供开源许可证。
 
-© 2024-2025 cxin. All rights reserved. 
+---
+
+<div align="right"><sub>从像素到混凝土 · <a href="https://github.com/iCxin">iCxin</a></sub></div>
